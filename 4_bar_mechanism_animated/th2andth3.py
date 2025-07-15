@@ -1,51 +1,5 @@
 import numpy as np
-
-def th23(theta_1, L1, L2, L3, L4, rama=1):
-    """
-    Calcula los ángulos theta_2 y theta_3 para un mecanismo de 4 barras dado theta_1.
-    
-    Parámetros:
-    - theta_1: ángulo de la barra 1 (input)
-    - L1, L2, L3, L4: longitudes de las barras
-    - rama: 1 o 2, para elegir la configuración de la solución (rama 1: beta + alpha, rama 2: beta - alpha)
-    
-    Retorna:
-    - array con [theta_1, theta_2, theta_3] o None si no hay solución válida
-    """
-
-    x = L1 * np.cos(theta_1)
-    y = L1 * np.sin(theta_1)
-
-    D = np.sqrt((L4 - x)**2 + y**2)
-
-    if D > (L2 + L3) or D < abs(L2 - L3):
-        return None
-
-    cos_alpha = (L3**2 + D**2 - L2**2) / (2 * L3 * D)
-    if abs(cos_alpha) > 1:
-        return None
-
-    alpha = np.arccos(cos_alpha)
-    beta = np.arctan2(y, L4 - x)
-
-    if rama == 1:
-        theta_3 = beta + alpha
-    elif rama == 2:
-        theta_3 = beta - alpha
-    else:
-        raise ValueError("El parámetro 'rama' debe ser 1 o 2.")
-
-    Bx, By = x, y
-    Cx = L4 + L3 * np.cos(theta_3)
-    Cy = L3 * np.sin(theta_3)
-
-    vec_BC_x = Cx - Bx
-    vec_BC_y = Cy - By
-    theta_2 = np.arctan2(vec_BC_y, vec_BC_x)
-
-    return np.array([theta_1, theta_2, theta_3])
-
-import numpy as np
+from scipy.optimize import fsolve
 
 def freudenstein_angles(L1, L2, L3, L4, th2):
     """
@@ -82,4 +36,86 @@ def freudenstein_angles(L1, L2, L3, L4, th2):
     except ValueError:
         th3, th4 = np.nan, np.nan  # Si hay raíces negativas
 
-    return th3, th4
+    return th2,th3, th4,0
+
+
+import numpy as np
+from scipy.optimize import fsolve
+
+def freudenstein_angles2(L1, L2, L3, L4, th2):
+    """
+    Calcula los ángulos th3 y th4 usando Freudenstein como estimación inicial
+    y luego ajusta con fsolve para mantener la rigidez del mecanismo.
+
+    Parámetros:
+    - L1, L2, L3, L4: Longitudes de las barras
+    - th2: Ángulo de entrada (en radianes)
+
+    Retorna:
+    - th2, th3, th4, th5=0 (placeholder por compatibilidad)
+    """
+
+    # ------------------------------
+    # Paso 1: Estimación inicial usando Freudenstein
+    K1 = L1 / L2
+    K2 = L1 / L4
+    K3 = (L1**2 + L2**2 - L3**2 + L4**2) / (2 * L2 * L4)
+    K4 = L1 / L3
+    K5 = (-L1**2 - L2**2 - L3**2 + L4**2) / (2 * L2 * L3)
+
+    A = np.cos(th2)*(1 - K2) + K3 - K1
+    B = -2 * np.sin(th2)
+    C = -np.cos(th2)*(1 + K2) + K3 + K1
+    D = np.cos(th2)*(1 + K4) + K5 - K1
+    E = -2 * np.sin(th2)
+    F = np.cos(th2)*(K4 - 1) + K1 + K5
+
+    try:
+        th3_guess = 2 * np.arctan((-E - np.sqrt(E**2 - 4*D*F)) / (2*D))
+        th4_guess = 2 * np.arctan((-B - np.sqrt(B**2 - 4*A*C)) / (2*A))
+    except ValueError:
+        return th2, np.nan, np.nan, 0
+
+    # ------------------------------
+    # Paso 2: Corrección con fsolve (cerrar lazo vectorial)
+    def loop_closure_eqs(vars):
+        th3, th4 = vars
+
+        # Coordenadas vectoriales
+        x_eq = L2 * np.cos(th2) + L3 * np.cos(th3) - L4 * np.cos(th4) - L1
+        y_eq = L2 * np.sin(th2) + L3 * np.sin(th3) - L4 * np.sin(th4)
+        return [x_eq, y_eq]
+
+    solution, info, ier, msg = fsolve(loop_closure_eqs, [th3_guess, th4_guess], full_output=True)
+
+    if ier != 1:
+        # No convergió
+        return th2, np.nan, np.nan, 0
+
+    th3_corrected, th4_corrected = solution
+
+    return th2, th3_corrected, th4_corrected, 0
+
+import numpy as np
+
+def calcular_rango_double_rocker(L1, L2, L3, L4, resolucion=1):
+    """
+    Calcula el rango de th2 para el cual hay una solución válida (th3 y th4 reales).
+    Sirve para mecanismos tipo Double Rocker (todos los eslabones oscilan).
+    """
+    th2_vals = np.radians(np.arange(0, 360, resolucion))
+    angulos_validos = []
+
+    for th2 in th2_vals:
+        angulos = freudenstein_angles2(L1, L2, L3, L4, th2)
+        if not np.any(np.isnan(angulos)):
+            angulos_validos.append(th2)
+
+    if len(angulos_validos) < 2:
+        raise ValueError("No se encontraron suficientes ángulos válidos para formar un rango.")
+
+    th2_min = np.min(angulos_validos)
+    th2_max = np.max(angulos_validos)
+    print(f"Rango de th2 válido: {np.degrees(th2_min):.2f}° a {np.degrees(th2_max):.2f}°")
+
+    return th2_min, th2_max

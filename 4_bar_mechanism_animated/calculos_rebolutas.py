@@ -1,44 +1,60 @@
 import numpy as np
-#Para los casos definidos por un giro de 360 grados
+
 def crA():
-    L1_X = 0 
-    L1_Y = 0
+    # Punto fijo tierra (origen)
+    return np.array([0.0, 0.0])
 
-    pos_a = np.array([L1_X,L1_Y])
-    return pos_a
+def crB(th2, L2):
+    """Posición de B, extremo de barra giratoria L2, con ángulo th2"""
+    x = L2 * np.cos(th2)
+    y = L2 * np.sin(th2)
+    return np.array([x, y])
 
-def crB(theta_1,L1):
-    L1_X = L1*(np.cos(theta_1))
-    L1_Y = L1*(np.sin(theta_1))
-    pos_b = np.array([L1_X,L1_Y])
-    return pos_b
+def crC(L2,L3,th2,th3):
+    L2_X = L2 *np.cos(th2)
+    L2_Y = L2 *np.sin(th2)
+    L3_X = L3 *np.cos(th3)
+    L3_Y = L3 *np.sin(th3)
+    return np.array([L2_X+L3_X, L2_Y+L3_Y])
 
-def crC(theta_1,theta_2,L1,L2):
-    L1_X = L1*(np.cos(theta_1))
-    L1_Y = L1*(np.sin(theta_1))
-    L2_X = L2*(np.cos(theta_2))
-    L2_Y =  L2*(np.sin(theta_2))
-    pos_c = np.array([L1_X+L2_X,L1_Y+L2_Y])
-    return pos_c
+def crD(L4):
+    # Punto fijo tierra para barra L4 (conecta en (L4, 0))
+    return np.array([L4, 0.0])
 
-theta_0=(0)
+def crE(th2, th3, L2, L3, L5):
+    """
+    Calcula la posición de la reboluta E, ubicada sobre la barra 5 que
+    forma un triángulo con las barras L2 (A-B) y L3 (B-C).
+    
+    La barra 5 parte desde B y se extiende en dirección perpendicular
+    (o con un offset fijo) respecto a la barra acopladora BC.
+    """
 
-def crD(theta_0,L4):
-    L4_X = L4
-    L4_Y = 0
-    pos_d = np.array([L4_X,L4_Y])
-    return pos_d
+    # Punto B (extremo de barra L2)
+    Bx = L2 * np.cos(th2)
+    By = L2 * np.sin(th2)
+    B = np.array([Bx, By])
 
-def crE(theta_1,L1,L5):
-    L1_X = L1*(np.cos(theta_1))
-    L1_Y = L1*(np.sin(theta_1))
-    L5_X = L5*(np.cos(1.0472))
-    L5_Y = L5*(np.sin(1.0472))
-    pos_e = np.array([(L1_X+L5_X),(L1_Y+L5_Y)])
-    return pos_e
+    # Punto C (extremo del acoplador L3)
+    Cx = Bx + L3 * np.cos(th3)
+    Cy = By + L3 * np.sin(th3)
+    C = np.array([Cx, Cy])
 
-def generar_posiciones(theta_1_array, theta_2_array, L1, L2, L3, L4, L5):
-    n = len(theta_1_array)
+    # Vector unitario de dirección de BC
+    v_bc = C - B
+    v_bc_unit = v_bc / np.linalg.norm(v_bc)
+
+    # Vector perpendicular a BC (en sentido antihorario)
+    v_perp = np.array([-v_bc_unit[1], v_bc_unit[0]])
+
+    # Posición de E = B + L5 * dirección perpendicular a BC
+    E = B + L5 * v_perp
+
+    return E
+
+
+def generar_posiciones(th2_array, th3_array, th4_array,th5_array,th6, L1, L2, L3, L4, L5):
+    n = len(th2_array)
     m_pos_a = np.zeros((n, 2))
     m_pos_b = np.zeros((n, 2))
     m_pos_c = np.zeros((n, 2))
@@ -46,50 +62,19 @@ def generar_posiciones(theta_1_array, theta_2_array, L1, L2, L3, L4, L5):
     m_pos_e = np.zeros((n, 2))
 
     for i in range(n):
-        theta_1 = theta_1_array[i]
-        theta_2 = theta_2_array[i]
+        th2 = th2_array[i]
+        th3 = th3_array[i]
+        th4 = th4_array[i]
+        th5 = th5_array[i]
 
-        m_pos_a[i] = crA()
-        m_pos_b[i] = crB(theta_1, L1)
-        m_pos_c[i] = crC(theta_1, theta_2, L1, L2)
-        m_pos_d[i] = crD(0, L4)  # fija
-        m_pos_e[i] = crE(theta_1, L1, L5)
+        m_pos_a[i] = crA()                  # origen
+        m_pos_b[i] = crB(th2, L2)          # extremo barra giratoria
+        m_pos_c[i] = crC(L2,L3,th2,th3)  # extremo barra superior(ORIGEN B O D)
+        m_pos_d[i] = crD(L4)                # barra fija derecha
+        m_pos_e[i] = crE(th2, th3, L2, L3, L5)
+   # punta barra 5
 
     return m_pos_a, m_pos_b, m_pos_c, m_pos_d, m_pos_e
 
 
 
-import matplotlib.pyplot as plt
-
-# Parámetros
-L1 = 10  # longitud fija de la barra 1
-
-# Crear array de ángulos de 0 a 360 grados, en radianes
-n_pasos = 360
-theta_1_array = np.linspace(0, 2*np.pi, n_pasos)
-
-# Array para almacenar posiciones de B
-pos_b_array = np.zeros((n_pasos, 2))
-
-# Calcular posiciones para cada ángulo
-for i, th in enumerate(theta_1_array):
-    pos_b_array[i, :] = crB(th, L1)
-
-# Imprimir algunas posiciones para comprobar
-print("Primeras 5 posiciones de B:")
-print(pos_b_array[:5])
-
-print("Últimas 5 posiciones de B:")
-print(pos_b_array[-5:])
-
-# Opcional: graficar el recorrido de la reboluta B
-plt.figure(figsize=(6,6))
-plt.plot(pos_b_array[:,0], pos_b_array[:,1], label="Trayectoria reboluta B")
-plt.scatter([0], [0], color='red', label='Revoluta A (fija)')
-plt.gca().set_aspect('equal')
-plt.title("Posición de reboluta B para θ₁ de 0 a 360°")
-plt.xlabel("X")
-plt.ylabel("Y")
-plt.legend()
-plt.grid(True)
-plt.show()

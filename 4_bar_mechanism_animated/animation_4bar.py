@@ -80,13 +80,7 @@ from matplotlib.animation import FuncAnimation
 
 def animar_una_barra(posa, posb, posc, posd, pose, fps, l, barra_elegida=2):
     """
-    Anima solo una barra del sistema de 5 barras, según la barra que se elija.
-
-    Parámetros:
-    - posa, posb, posc, posd, pose: arrays (n_frames, 2) con posiciones de cada punto en cada frame.
-    - fps: cuadros por segundo.
-    - l: límite para los ejes.
-    - barra_elegida: número entero del 1 al 5 que indica cuál barra animar.
+    Anima una sola barra del sistema y muestra en tiempo real su longitud.
 
     Barras:
     1: posa → posb
@@ -110,12 +104,17 @@ def animar_una_barra(posa, posb, posc, posd, pose, fps, l, barra_elegida=2):
     ax.set_aspect('equal')
     ax.set_title(f"Animación barra {barra_elegida}")
 
-    # Crear una línea vacía para la barra elegida
     barra, = ax.plot([], [], 'o-', lw=3, label=f"Barra {barra_elegida}")
+
+    # Texto para mostrar la longitud
+    texto_longitud = ax.text(0.98, 0.95, '', transform=ax.transAxes,
+                             ha='right', va='top', fontsize=12,
+                             bbox=dict(boxstyle="round", facecolor="white", alpha=0.7))
 
     def init():
         barra.set_data([], [])
-        return barra,
+        texto_longitud.set_text('')
+        return barra, texto_longitud
 
     def update(frame):
         pa = posa[frame]
@@ -125,20 +124,27 @@ def animar_una_barra(posa, posb, posc, posd, pose, fps, l, barra_elegida=2):
         pe = pose[frame]
 
         if barra_elegida == 1:
-            xs, ys = [pa[0], pb[0]], [pa[1], pb[1]]
+            p1, p2 = pa, pb
         elif barra_elegida == 2:
-            xs, ys = [pb[0], pc[0]], [pb[1], pc[1]]
+            p1, p2 = pb, pc
         elif barra_elegida == 3:
-            xs, ys = [pc[0], pd[0]], [pc[1], pd[1]]
+            p1, p2 = pc, pd
         elif barra_elegida == 4:
-            xs, ys = [pb[0], pe[0]], [pb[1], pe[1]]
+            p1, p2 = pb, pe
         elif barra_elegida == 5:
-            xs, ys = [pc[0], pe[0]], [pc[1], pe[1]]
+            p1, p2 = pc, pe
         else:
-            xs, ys = [], []
+            p1, p2 = np.array([0, 0]), np.array([0, 0])
 
+        # Actualizar línea
+        xs, ys = [p1[0], p2[0]], [p1[1], p2[1]]
         barra.set_data(xs, ys)
-        return barra,
+
+        # Calcular y mostrar longitud
+        longitud = np.linalg.norm(p2 - p1)
+        texto_longitud.set_text(f"Longitud: {longitud:.4f}")
+
+        return barra, texto_longitud
 
     anim = FuncAnimation(fig, update, frames=n_frames, init_func=init,
                          blit=True, interval=1000 / fps)
